@@ -1,0 +1,11 @@
+*.pyc
+datasets/ours_default_scenes
+datasets/ours_default_data
+SPlisHSPlasH-2.4.0/
+*.tar.gz
+datasets/ours_default_scenes_old
+datasets/ours_default_data_old
+exp/
+train_network_torch_default/
+render/
+scenes/canyon_out/

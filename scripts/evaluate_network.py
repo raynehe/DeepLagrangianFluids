@@ -371,10 +371,10 @@ def main():
 
         # tensorflow checkpoints
         checkpoint_files = glob(
-            os.path.join(train_dir, 'checkpoints', 'ckpt-*.index'))
+            os.path.join('..', train_dir, 'checkpoints', 'ckpt-*.index'))
         # torch checkpoints
         checkpoint_files.extend(
-            glob(os.path.join(train_dir, 'checkpoints', 'ckpt-*.pt')))
+            glob(os.path.join('..',train_dir, 'checkpoints', 'ckpt-*.pt')))
         all_checkpoints = sorted([
             (int(re.match('.*ckpt-(\d+)\.(pt|index)', x).group(1)), x)
             for x in checkpoint_files

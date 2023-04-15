@@ -1,3 +1,13 @@
 dataset_dir: "../datasets/ours_default_data" # path to the dataset directory with 'train' and 'valid' subdirs.
+train_dir: "../exp/addtag"
 train_data:
   random_rotation: true # randomly rotate training data about the gravity axis.
+
+model:
+  gravity: [0, -8.91818181818182, 0]
+  ball_query_neighbor: 256
+  other_feats_channels: 1
+evaluation:
+  # To compute errors in meters we undo the scaling of the dataset for the 
+  # evaluation. The scaling factor is 1.1 = 0.055/0.05.
+  scale: 1.1

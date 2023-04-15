@@ -40,9 +40,10 @@ def main():
         cfg = yaml.safe_load(f)
 
     # the train dir stores all checkpoints and summaries. The dir name is the name of this file combined with the name of the config file
-    train_dir = os.path.splitext(
-        os.path.basename(__file__))[0] + '_' + os.path.splitext(
-            os.path.basename(args.cfg))[0]
+    # train_dir = os.path.splitext(
+    #     os.path.basename(__file__))[0] + '_' + os.path.splitext(
+    #         os.path.basename(args.cfg))[0]
+    train_dir = cfg['train_dir']
 
     val_files = sorted(glob(os.path.join(cfg['dataset_dir'], 'valid', '*.zst')))
     train_files = sorted(
@@ -123,7 +124,17 @@ def main():
         losses = []
 
         batch_size = train_params.batch_size
+        # print("=============更新之后===========")
+        # for name, parms in model.named_parameters():
+        #     print('-->name:', name)
+        #     print('-->para:', parms)
+        #     print('-->grad_requirs:',parms.requires_grad)
+        #     print('-->grad_value:',parms.grad)
+        #     print('-->is_leaf:',parms.is_leaf)
+        #     print('grad-norm:',  torch.norm(parms.grad))
+        #     print("===")
         for batch_i in range(batch_size):
+            # input data
             inputs = ([
                 batch['pos0'][batch_i], batch['vel0'][batch_i], None,
                 batch['box'][batch_i], batch['box_normals'][batch_i]
@@ -134,6 +145,7 @@ def main():
             l = 0.5 * loss_fn(pr_pos1, batch['pos1'][batch_i],
                               model.num_fluid_neighbors)
 
+            # 咋又来一次?
             inputs = (pr_pos1, pr_vel1, None, batch['box'][batch_i],
                       batch['box_normals'][batch_i])
             pr_pos2, pr_vel2 = model(inputs)

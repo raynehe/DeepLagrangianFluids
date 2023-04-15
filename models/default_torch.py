@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import open3d.ml.torch as ml3d
 import numpy as np
+from pytorch3d.ops import knn_points
 
 
 class MyParticleNetwork(torch.nn.Module):
@@ -17,6 +18,7 @@ class MyParticleNetwork(torch.nn.Module):
             timestep=1 / 50,
             gravity=(0, -9.81, 0),
             other_feats_channels=0,
+            ball_query_neighbor=0,
     ):
         super().__init__()
         self.layer_channels = [32, 64, 64, 3]
@@ -28,6 +30,9 @@ class MyParticleNetwork(torch.nn.Module):
         self.particle_radius = particle_radius
         self.filter_extent = np.float32(self.radius_scale * 6 *
                                         self.particle_radius)
+        self.ball_query_radius = np.float32(self.radius_scale * 3 *
+                                        self.particle_radius)
+        self.ball_query_neighbor = ball_query_neighbor
         self.timestep = timestep
         gravity = torch.FloatTensor(gravity)
         self.register_buffer('gravity', gravity)
@@ -119,6 +124,7 @@ class MyParticleNetwork(torch.nn.Module):
         # compute the extent of the filters (the diameter)
         filter_extent = torch.tensor(self.filter_extent)
 
+        # fluid_feats就三个特征，一个是全1，一个是速度，一个是其他特征
         fluid_feats = [torch.ones_like(pos[:, 0:1]), vel]
         if not other_feats is None:
             fluid_feats.append(other_feats)
@@ -126,6 +132,7 @@ class MyParticleNetwork(torch.nn.Module):
 
         self.ans_conv0_fluid = self.conv0_fluid(fluid_feats, pos, pos,
                                                 filter_extent)
+        # dense 就是全连接层
         self.ans_dense0_fluid = self.dense0_fluid(fluid_feats)
         self.ans_conv0_obstacle = self.conv0_obstacle(box_feats, box, pos,
                                                       filter_extent)
@@ -169,6 +176,14 @@ class MyParticleNetwork(torch.nn.Module):
         """
         pos, vel, feats, box, box_feats = inputs
 
+        ### Version1
+        # feats is None here, but we need to change it to the surface attribute 表面/内部
+        feats = self.compute_location(pos) # # (14664, 1)
+
+        ### Version2
+        # Send the points that are **ON** the surface to another branch of the network
+        # This NEW branch is to be constructed.
+
         pos2, vel2 = self.integrate_pos_vel(pos, vel)
         pos_correction = self.compute_correction(
             pos2, vel2, feats, box, box_feats, fixed_radius_search_hash_table)
@@ -189,3 +204,51 @@ class MyParticleNetwork(torch.nn.Module):
     # box_feats = np.zeros(shape=(1, 3), dtype=np.float32)
 
     # _ = self.__call__((pos, vel, feats, box, box_feats))
+
+    def compute_location(self, pos):
+        ''' 
+        return: surface / inner attribute (12610, 1)
+                assign 1 to the surface particles and 0 to the inner particles
+        '''
+        pos = pos.unsqueeze(0)
+        self.ball_query_neighbor = int(pos.shape[1] * 0.04)
+        dists = knn_points(p1=pos, p2=pos, K=self.ball_query_neighbor)[0] # (1,N,32)
+        # ball_query_neighbor越大 表面(红色)越多
+        dists_max = dists.squeeze(0)[:,-1].unsqueeze(1) # (N, 1)
+        zeros = torch.zeros([dists_max.shape[0],1],dtype=torch.float).cuda() # (N, 1)
+        ones = torch.ones([dists_max.shape[0],1],dtype=torch.float).cuda() # (N, 1)
+
+        location = torch.where(dists_max > self.ball_query_radius, ones, zeros) 
+        
+        # print('ball_query_radius:',self.ball_query_radius)
+        # print(dists_max[:10])
+        # print(location[:10])
+        self.plot_particle(pos, location)
+        return location
+    
+    def plot_particle(self, pos, location):
+        # import matplotlib
+        # matplotlib.use('Agg')
+        import matplotlib
+        matplotlib.use('TkAgg')
+        import matplotlib.pyplot as plt
+        from matplotlib import pyplot as plt
+        from mpl_toolkits.mplot3d import Axes3D
+
+        pos = pos.squeeze(0) # (N, 3)
+        location = location.squeeze(1) # (N,)
+        surface = pos[location == 1][:]
+        inner = pos[location == 0][:]
+        surface = surface.cpu().detach().numpy()
+        inner = inner.cpu().detach().numpy()
+        print('surface:',surface.shape[0]) # surface - red
+        print('inner:',inner.shape[0]) # inner - blue
+
+        fig = plt.figure()
+        ax = Axes3D(fig)
+        ax.scatter(surface[:,0], surface[:,1], surface[:,2], s=1, c='r', marker='.', alpha=0.5)
+        # plt.show()
+        ax.scatter(inner[:,0], inner[:,1], inner[:,2], s=1, c='b', marker='.', alpha=0.5)
+        ax.legend()
+        plt.show()
+        plt.close()

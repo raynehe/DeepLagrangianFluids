@@ -107,7 +107,7 @@ def run_sim_torch(trainscript_module, weights_path, scene, num_steps,
     # init the network
     model = trainscript_module.create_model()
     weights = torch.load(weights_path)
-    model.load_state_dict(weights)
+    model.load_state_dict(weights['model'])
     model.to(device)
     model.requires_grad_(False)
 
@@ -226,7 +226,7 @@ def main():
     with open(args.scene, 'r') as f:
         scene = json.load(f)
 
-    os.makedirs(args.output)
+    os.makedirs(args.output, exist_ok = True)
 
     if args.weights.endswith('.h5'):
         return run_sim_tf(trainscript_module, args.weights, scene,
